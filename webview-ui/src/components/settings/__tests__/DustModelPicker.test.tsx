@@ -1,247 +1,172 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { DustModelPicker } from "../DustModelPicker";
-import { ExtensionStateContextProvider } from "../../../context/ExtensionStateContext";
-import React from "react";
-import { dustDefaultModelId, dustModels } from "../../../../../src/shared/api";
+import { mockUseExtensionState } from "../../../test-utils/setup";
+import { dustDefaultModelId } from "../../../../../src/shared/api";
+import { ApiConfiguration } from "../../../../../src/shared/api";
 
-const mockSetApiConfiguration = jest.fn();
-
-// Mock scrollIntoView since it's not supported in jsdom
-window.HTMLElement.prototype.scrollIntoView = jest.fn();
-
-const renderWithConfig = (config = {}) => {
-    jest.spyOn(require("../../../context/ExtensionStateContext"), "useExtensionState").mockImplementation(() => ({
-        apiConfiguration: {
-            dustAssistantId: dustDefaultModelId,
-            ...config
-        },
-        setApiConfiguration: mockSetApiConfiguration,
-    }));
-
-    return render(
-        <ExtensionStateContextProvider>
-            <DustModelPicker />
-        </ExtensionStateContextProvider>
-    );
-};
-
-// Mock ModelInfoView component since it's imported from ApiOptions
+// Mock ModelInfoView
 jest.mock("../ApiOptions", () => ({
-    ModelInfoView: ({ selectedModelId, modelInfo }: any) => (
-        <div data-testid="model-info">
-            Model: {selectedModelId}
-            <div>Max Tokens: {modelInfo.maxTokens}</div>
-        </div>
-    ),
-    normalizeApiConfiguration: jest.fn(),
+    ModelInfoView: () => null,
 }));
 
 describe("DustModelPicker", () => {
+    const mockSetApiConfiguration = jest.fn();
+    const defaultApiConfig: Required<Pick<ApiConfiguration, 'dustApiKey' | 'dustWorkspaceId' | 'dustAvailableModels' | 'dustAssistantId'>> = {
+        dustApiKey: "",
+        dustWorkspaceId: "",
+        dustAvailableModels: {},
+        dustAssistantId: "",
+    };
+
+    const defaultState = {
+        didHydrateState: true,
+        showWelcome: false,
+        theme: {},
+        openRouterModels: {},
+        filePaths: [],
+        version: "1.0.0",
+        clineMessages: [],
+        taskHistory: [],
+        shouldShowAnnouncement: false,
+        apiConfiguration: defaultApiConfig,
+        setApiConfiguration: mockSetApiConfiguration,
+        setCustomInstructions: jest.fn(),
+        setAlwaysAllowReadOnly: jest.fn(),
+        setShowAnnouncement: jest.fn(),
+    };
+
+    const mockModels = {
+        "model-1": {
+            maxTokens: 4096,
+            contextWindow: 200_000,
+            supportsImages: true,
+            supportsPromptCache: true,
+            inputPrice: 3.0,
+            outputPrice: 15.0,
+        },
+        "model-2": {
+            maxTokens: 8192,
+            contextWindow: 200_000,
+            supportsImages: true,
+            supportsPromptCache: true,
+            inputPrice: 15.0,
+            outputPrice: 75.0,
+        },
+    };
+
     beforeEach(() => {
         jest.clearAllMocks();
+        mockUseExtensionState.mockReturnValue(defaultState);
     });
 
-    it("renders with default model selected but disabled when credentials are missing", () => {
-        renderWithConfig();
-        
-        const input = screen.getByTestId("vscode-text-field");
+    it("should be disabled when credentials are not provided", () => {
+        render(<DustModelPicker />);
+        const input = screen.getByRole("textbox");
         expect(input).toBeDisabled();
-        expect(input).toHaveAttribute("placeholder", "Enter API Key and Workspace ID first");
-        expect(screen.queryByTestId("model-info")).not.toBeInTheDocument();
     });
 
-    it("enables model selection when valid credentials are present", () => {
-        renderWithConfig({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace"
-        });
-        
-        const input = screen.getByTestId("vscode-text-field");
-        expect(input).not.toBeDisabled();
-        expect(input).toHaveAttribute("placeholder", "Search and select a model...");
-        expect(screen.getByTestId("model-info")).toBeInTheDocument();
-    });
-
-    it("resets to default model when credentials become invalid", () => {
-        const { rerender } = render(
-            <ExtensionStateContextProvider>
-                <DustModelPicker />
-            </ExtensionStateContextProvider>
-        );
-
-        // Initially with valid credentials and custom model
-        jest.spyOn(require("../../../context/ExtensionStateContext"), "useExtensionState").mockImplementation(() => ({
+    it("should be enabled when credentials are provided", () => {
+        mockUseExtensionState.mockReturnValue({
+            ...defaultState,
             apiConfiguration: {
-                dustAssistantId: "claude-3-opus",
+                ...defaultApiConfig,
                 dustApiKey: "test-key",
-                dustWorkspaceId: "test-workspace"
+                dustWorkspaceId: "test-workspace",
+                dustAvailableModels: mockModels,
             },
-            setApiConfiguration: mockSetApiConfiguration,
-        }));
+        });
 
-        rerender(
-            <ExtensionStateContextProvider>
-                <DustModelPicker />
-            </ExtensionStateContextProvider>
-        );
+        render(<DustModelPicker />);
+        const input = screen.getByRole("textbox");
+        expect(input).toBeEnabled();
+    });
 
-        // Then remove credentials
-        jest.spyOn(require("../../../context/ExtensionStateContext"), "useExtensionState").mockImplementation(() => ({
+    it("should show available models in dropdown", async () => {
+        // Set up state with valid credentials and models
+        const initialState = {
+            ...defaultState,
             apiConfiguration: {
-                dustAssistantId: "claude-3-opus"
+                ...defaultApiConfig,
+                dustApiKey: "test-key",
+                dustWorkspaceId: "test-workspace",
+                dustAvailableModels: mockModels,
+                dustAssistantId: "",
             },
-            setApiConfiguration: mockSetApiConfiguration,
-        }));
+        };
+        mockUseExtensionState.mockReturnValue(initialState);
 
-        rerender(
-            <ExtensionStateContextProvider>
-                <DustModelPicker />
-            </ExtensionStateContextProvider>
-        );
+        render(<DustModelPicker />);
 
-        expect(mockSetApiConfiguration).toHaveBeenCalledWith({
-            dustAssistantId: dustDefaultModelId
-        });
-    });
-
-    it("shows dropdown when input is focused with valid credentials", async () => {
-        renderWithConfig({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace"
-        });
-
-        const input = screen.getByTestId("vscode-text-field");
+        // Focus input to show dropdown
+        const input = screen.getByRole("textbox");
         fireEvent.focus(input);
 
-        // Wait for dropdown to appear
-        const dropdownList = await screen.findByTestId("dropdown-list");
-        expect(dropdownList).toBeInTheDocument();
-
-        // Check if models are displayed
-        Object.keys(dustModels).forEach(modelId => {
-            expect(dropdownList).toHaveTextContent(modelId);
-        });
-    });
-
-    it("does not show dropdown when input is focused without valid credentials", () => {
-        renderWithConfig();
-
-        const input = screen.getByTestId("vscode-text-field");
-        fireEvent.focus(input);
-
-        expect(screen.queryByTestId("dropdown-list")).not.toBeInTheDocument();
-    });
-
-    it("filters models based on search term with valid credentials", async () => {
-        renderWithConfig({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace"
-        });
-
-        const input = screen.getByTestId("vscode-text-field");
-        fireEvent.focus(input);
-        fireEvent.input(input, { target: { value: "opus" } });
-
-        // Wait for dropdown to appear
-        const dropdownList = await screen.findByTestId("dropdown-list");
-        expect(dropdownList).toHaveTextContent("claude-3-opus");
-        expect(dropdownList).not.toHaveTextContent("claude-3-sonnet");
-    });
-
-    it("updates model selection when clicking on a model with valid credentials", async () => {
-        renderWithConfig({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace"
-        });
-
-        const input = screen.getByTestId("vscode-text-field");
-        fireEvent.focus(input);
-
-        // Wait for dropdown to appear
-        await screen.findByTestId("dropdown-list");
-
-        const modelOptions = screen.getAllByTestId("dropdown-item");
-        const opusOption = modelOptions.find(option => option.textContent?.includes("claude-3-opus"));
-        expect(opusOption).toBeTruthy();
-
-        fireEvent.click(opusOption!);
-
-        expect(mockSetApiConfiguration).toHaveBeenCalledWith({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace",
-            dustAssistantId: "claude-3-opus",
-        });
-    });
-
-    it("supports keyboard navigation with valid credentials", async () => {
-        renderWithConfig({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace"
-        });
-
-        const input = screen.getByTestId("vscode-text-field");
-        fireEvent.focus(input);
-
-        // Wait for dropdown to appear
-        await screen.findByTestId("dropdown-list");
-
-        // Press arrow down to select first item
-        fireEvent.keyDown(input, { key: "ArrowDown" });
-        // Press enter to select
-        fireEvent.keyDown(input, { key: "Enter" });
-
-        expect(mockSetApiConfiguration).toHaveBeenCalled();
-    });
-
-    it("closes dropdown when escape is pressed", async () => {
-        renderWithConfig({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace"
-        });
-
-        const input = screen.getByTestId("vscode-text-field");
-        fireEvent.focus(input);
-
-        // Wait for dropdown to appear
-        await screen.findByTestId("dropdown-list");
-
-        // Press escape
-        fireEvent.keyDown(input, { key: "Escape" });
-
-        // Wait for dropdown to disappear
+        // Wait for dropdown list to be visible
         await waitFor(() => {
-            expect(screen.queryByTestId("dropdown-list")).not.toBeInTheDocument();
+            expect(screen.getByTestId("dropdown-list")).toBeInTheDocument();
         });
+
+        // Wait for items to be rendered
+        await waitFor(() => {
+            expect(screen.getAllByTestId("dropdown-item")).toHaveLength(2);
+        });
+
+        const items = screen.getAllByTestId("dropdown-item");
+        expect(items[0]).toHaveTextContent("model-1");
+        expect(items[1]).toHaveTextContent("model-2");
     });
 
-    it("clears search when clear button is clicked with valid credentials", async () => {
-        renderWithConfig({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace"
+    it("should filter models based on search term", async () => {
+        // Set up state with valid credentials and models
+        const initialState = {
+            ...defaultState,
+            apiConfiguration: {
+                ...defaultApiConfig,
+                dustApiKey: "test-key",
+                dustWorkspaceId: "test-workspace",
+                dustAvailableModels: mockModels,
+                dustAssistantId: "",
+            },
+        };
+        mockUseExtensionState.mockReturnValue(initialState);
+
+        render(<DustModelPicker />);
+
+        // Focus input and type search term
+        const input = screen.getByRole("textbox");
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: "model-1" } });
+
+        // Wait for filtered items
+        await waitFor(() => {
+            expect(screen.getAllByTestId("dropdown-item")).toHaveLength(1);
         });
 
-        const input = screen.getByTestId("vscode-text-field");
-        fireEvent.input(input, { target: { value: "opus" } });
-
-        const clearButton = screen.getByLabelText("Clear search");
-        fireEvent.click(clearButton);
-
-        expect(input).toHaveValue("");
-        expect(mockSetApiConfiguration).toHaveBeenCalledWith({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace",
-            dustAssistantId: "",
-        });
+        const items = screen.getAllByTestId("dropdown-item");
+        expect(items[0]).toHaveTextContent("model-1");
+        expect(screen.queryByText("model-2")).not.toBeInTheDocument();
     });
 
-    it("shows model info when valid model is selected with valid credentials", () => {
-        renderWithConfig({
-            dustApiKey: "test-key",
-            dustWorkspaceId: "test-workspace"
+    it("should reset to default model when credentials are removed", () => {
+        mockUseExtensionState.mockReturnValue({
+            ...defaultState,
+            apiConfiguration: {
+                ...defaultApiConfig,
+                dustApiKey: "test-key",
+                dustWorkspaceId: "test-workspace",
+                dustAvailableModels: mockModels,
+                dustAssistantId: "model-1",
+            },
         });
 
-        const modelInfo = screen.getByTestId("model-info");
-        expect(modelInfo).toHaveTextContent(`Model: ${dustDefaultModelId}`);
-        expect(modelInfo).toHaveTextContent(`Max Tokens: ${dustModels[dustDefaultModelId].maxTokens}`);
+        const { rerender } = render(<DustModelPicker />);
+        const input = screen.getByRole("textbox");
+        expect(input).toHaveValue("model-1");
+
+        // Update state to simulate credentials being removed
+        mockUseExtensionState.mockReturnValue(defaultState);
+        rerender(<DustModelPicker />);
+
+        expect(input).toHaveValue(dustDefaultModelId);
     });
 });

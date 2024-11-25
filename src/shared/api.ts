@@ -38,6 +38,7 @@ export interface ApiHandlerOptions {
 	dustBaseUrl?: string
 	dustApiKey?: string
 	dustAssistantId?: string
+	dustAvailableModels?: Record<string, ModelInfo>
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {

@@ -25,6 +25,40 @@ export class DustHandler implements ApiHandler {
 		}
 	}
 
+	async fetchAvailableModels(): Promise<Record<string, ModelInfo>> {
+		// Fetch agent configurations which contain model information
+		const response = await fetch(`${this.baseUrl}/api/v1/w/${this.workspaceId}/assistant/agent_configurations`, {
+			headers: {
+				"Authorization": `Bearer ${this.apiKey}`,
+			},
+		})
+
+		if (!response.ok) {
+			throw new Error(`Failed to fetch models: ${response.status}`)
+		}
+
+		const data = await response.json()
+		const models: Record<string, ModelInfo> = {}
+
+		// Extract unique models from agent configurations
+		data.forEach((config: any) => {
+			if (config.model?.modelId) {
+				const modelId = config.model.modelId
+				if (!models[modelId]) {
+					// Use existing model info if available, otherwise create default
+					models[modelId] = dustModels[modelId as DustModelId] || {
+						supportsPromptCache: true,
+						supportsImages: true,
+						contextWindow: 200_000,
+						maxTokens: 4096,
+					}
+				}
+			}
+		})
+
+		return models
+	}
+
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
 		const configurationId = this.options.dustAssistantId || this.options.apiModelId || dustDefaultModelId
 
@@ -134,9 +168,10 @@ export class DustHandler implements ApiHandler {
 
 	getModel(): { id: string; info: ModelInfo } {
 		const modelId = this.options.apiModelId || dustDefaultModelId
+		const models = this.options.dustAvailableModels || dustModels
 		return {
 			id: modelId,
-			info: dustModels[modelId as DustModelId] || dustModels[dustDefaultModelId],
+			info: models[modelId as DustModelId] || models[dustDefaultModelId],
 		}
 	}
 }
