@@ -41,7 +41,7 @@ export class DustHandler implements ApiHandler {
 		const models: Record<string, DustModelInfo> = {}
 
 		// Extract models and agent information from configurations
-		data.forEach((config: any) => {
+		data?.agentConfigurations?.forEach((config: any) => {
 			if (config.model?.modelId) {
 				const modelId = config.model.modelId
 				const agentId = config.sId
