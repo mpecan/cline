@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import { ApiHandlerOptions, ModelInfo, dustModels, dustDefaultModelId, DustModelId } from "../../shared/api"
+import { ApiHandlerOptions, ModelInfo, DustModelInfo, dustModels, dustDefaultModelId } from "../../shared/api"
 import { ApiHandler, Message } from "../index"
 import { ApiStream } from "../transform/stream"
 
@@ -25,7 +25,7 @@ export class DustHandler implements ApiHandler {
 		}
 	}
 
-	async fetchAvailableModels(): Promise<Record<string, ModelInfo>> {
+	async fetchAvailableModels(): Promise<Record<string, DustModelInfo>> {
 		// Fetch agent configurations which contain model information
 		const response = await fetch(`${this.baseUrl}/api/v1/w/${this.workspaceId}/assistant/agent_configurations`, {
 			headers: {
@@ -38,20 +38,26 @@ export class DustHandler implements ApiHandler {
 		}
 
 		const data = await response.json()
-		const models: Record<string, ModelInfo> = {}
+		const models: Record<string, DustModelInfo> = {}
 
-		// Extract unique models from agent configurations
+		// Extract models and agent information from configurations
 		data.forEach((config: any) => {
 			if (config.model?.modelId) {
 				const modelId = config.model.modelId
-				if (!models[modelId]) {
-					// Use existing model info if available, otherwise create default
-					models[modelId] = dustModels[modelId as DustModelId] || {
-						supportsPromptCache: true,
-						supportsImages: true,
-						contextWindow: 200_000,
-						maxTokens: 4096,
-					}
+				const agentId = config.sId
+
+				// Use agentId as the key
+				models[agentId] = {
+					agentId,
+					modelId,
+					maxTokens: 4096,
+					contextWindow: 200_000,
+					supportsImages: true,
+					supportsPromptCache: true,
+					agentName: config.name,
+					agentDescription: config.description,
+					agentInstructions: config.instructions,
+					agentPictureUrl: config.pictureUrl,
 				}
 			}
 		})
@@ -60,6 +66,7 @@ export class DustHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		// Use dustAssistantId if provided, otherwise use apiModelId (which should be an agentId), or fall back to default
 		const configurationId = this.options.dustAssistantId || this.options.apiModelId || dustDefaultModelId
 
 		// First create a conversation
@@ -166,12 +173,23 @@ export class DustHandler implements ApiHandler {
 		}
 	}
 
-	getModel(): { id: string; info: ModelInfo } {
-		const modelId = this.options.apiModelId || dustDefaultModelId
-		const models = this.options.dustAvailableModels || dustModels
+	getModel(): { id: string; info: DustModelInfo } {
+		const agentId = this.options.apiModelId || dustDefaultModelId
+		const availableModels = this.options.dustAvailableModels as Record<string, DustModelInfo> | undefined
+		const defaultModel = dustModels[dustDefaultModelId] as DustModelInfo
+
+		// If we have available models and the requested agent exists, use it
+		if (availableModels && agentId in availableModels) {
+			return {
+				id: agentId,
+				info: availableModels[agentId],
+			}
+		}
+
+		// Otherwise fall back to the default model
 		return {
-			id: modelId,
-			info: models[modelId as DustModelId] || models[dustDefaultModelId],
+			id: dustDefaultModelId,
+			info: defaultModel,
 		}
 	}
 }

@@ -36,7 +36,11 @@ describe("DustModelPicker", () => {
     };
 
     const mockModels = {
-        "model-1": {
+        "agent-1": {
+            agentId: "agent-1",
+            modelId: "claude-3-5-sonnet-20241022",
+            agentName: "Test Agent 1",
+            agentDescription: "A test agent",
             maxTokens: 4096,
             contextWindow: 200_000,
             supportsImages: true,
@@ -44,13 +48,17 @@ describe("DustModelPicker", () => {
             inputPrice: 3.0,
             outputPrice: 15.0,
         },
-        "model-2": {
-            maxTokens: 8192,
+        "agent-2": {
+            agentId: "agent-2",
+            modelId: "claude-3-5-sonnet-20241022",
+            agentName: "Test Agent 2",
+            agentDescription: "Another test agent",
+            maxTokens: 4096,
             contextWindow: 200_000,
             supportsImages: true,
             supportsPromptCache: true,
-            inputPrice: 15.0,
-            outputPrice: 75.0,
+            inputPrice: 3.0,
+            outputPrice: 15.0,
         },
     };
 
@@ -81,7 +89,7 @@ describe("DustModelPicker", () => {
         expect(input).toBeEnabled();
     });
 
-    it("should show available models in dropdown", async () => {
+    it("should show available agents in dropdown", async () => {
         // Set up state with valid credentials and models
         const initialState = {
             ...defaultState,
@@ -112,11 +120,13 @@ describe("DustModelPicker", () => {
         });
 
         const items = screen.getAllByTestId("dropdown-item");
-        expect(items[0]).toHaveTextContent("model-1");
-        expect(items[1]).toHaveTextContent("model-2");
+        expect(items[0]).toHaveTextContent("Test Agent 1");
+        expect(items[0]).toHaveTextContent("agent-1");
+        expect(items[1]).toHaveTextContent("Test Agent 2");
+        expect(items[1]).toHaveTextContent("agent-2");
     });
 
-    it("should filter models based on search term", async () => {
+    it("should filter agents based on search term", async () => {
         // Set up state with valid credentials and models
         const initialState = {
             ...defaultState,
@@ -135,7 +145,7 @@ describe("DustModelPicker", () => {
         // Focus input and type search term
         const input = screen.getByRole("textbox");
         fireEvent.focus(input);
-        fireEvent.change(input, { target: { value: "model-1" } });
+        fireEvent.change(input, { target: { value: "Agent 1" } });
 
         // Wait for filtered items
         await waitFor(() => {
@@ -143,11 +153,11 @@ describe("DustModelPicker", () => {
         });
 
         const items = screen.getAllByTestId("dropdown-item");
-        expect(items[0]).toHaveTextContent("model-1");
-        expect(screen.queryByText("model-2")).not.toBeInTheDocument();
+        expect(items[0]).toHaveTextContent("Test Agent 1");
+        expect(screen.queryByText("Test Agent 2")).not.toBeInTheDocument();
     });
 
-    it("should reset to default model when credentials are removed", () => {
+    it("should reset to default agent when credentials are removed", () => {
         mockUseExtensionState.mockReturnValue({
             ...defaultState,
             apiConfiguration: {
@@ -155,18 +165,49 @@ describe("DustModelPicker", () => {
                 dustApiKey: "test-key",
                 dustWorkspaceId: "test-workspace",
                 dustAvailableModels: mockModels,
-                dustAssistantId: "model-1",
+                dustAssistantId: "agent-1",
             },
         });
 
         const { rerender } = render(<DustModelPicker />);
         const input = screen.getByRole("textbox");
-        expect(input).toHaveValue("model-1");
+        expect(input).toHaveValue("agent-1");
 
         // Update state to simulate credentials being removed
         mockUseExtensionState.mockReturnValue(defaultState);
         rerender(<DustModelPicker />);
 
         expect(input).toHaveValue(dustDefaultModelId);
+    });
+
+    it("should update both dustAssistantId and apiModelId when selecting an agent", async () => {
+        const initialState = {
+            ...defaultState,
+            apiConfiguration: {
+                ...defaultApiConfig,
+                dustApiKey: "test-key",
+                dustWorkspaceId: "test-workspace",
+                dustAvailableModels: mockModels,
+            },
+        };
+        mockUseExtensionState.mockReturnValue(initialState);
+
+        render(<DustModelPicker />);
+
+        const input = screen.getByRole("textbox");
+        fireEvent.focus(input);
+        fireEvent.change(input, { target: { value: "agent-1" } });
+
+        await waitFor(() => {
+            expect(screen.getAllByTestId("dropdown-item")).toHaveLength(1);
+        });
+
+        const item = screen.getAllByTestId("dropdown-item")[0];
+        fireEvent.click(item);
+
+        expect(mockSetApiConfiguration).toHaveBeenCalledWith(expect.objectContaining({
+            dustAssistantId: "agent-1",
+            apiModelId: "agent-1",
+        }));
     });
 });

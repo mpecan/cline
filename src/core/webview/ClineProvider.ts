@@ -11,7 +11,7 @@ import { openFile, openImage } from "../../integrations/misc/open-file"
 import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
-import { ApiProvider, ModelInfo } from "../../shared/api"
+import { ApiProvider, DustModelInfo, ModelInfo } from "../../shared/api"
 import { DustHandler } from "../../api/providers/dust"
 import { findLast } from "../../shared/array"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
@@ -957,7 +957,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
             this.getGlobalState("dustWorkspaceId") as Promise<string | undefined>,
             this.getGlobalState("dustBaseUrl") as Promise<string | undefined>,
             this.getGlobalState("dustAssistantId") as Promise<string | undefined>,
-            this.getGlobalState("dustAvailableModels") as Promise<Record<string, ModelInfo> | undefined>,
+            this.getGlobalState("dustAvailableModels") as Promise<Record<string, DustModelInfo> | undefined>,
         ])
 
 		let apiProvider: ApiProvider

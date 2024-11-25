@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals'
 import { DustHandler } from '../api/providers/dust'
-import { ApiHandlerOptions, dustModels } from '../shared/api'
+import { ApiHandlerOptions, dustModels, DustModelInfo } from '../shared/api'
 import { ApiStream } from '../api/transform/stream'
 import { Anthropic } from "@anthropic-ai/sdk"
 
@@ -42,11 +42,108 @@ describe('DustHandler', () => {
         })
     })
 
+    describe('fetchAvailableModels', () => {
+        const validOptions: ApiHandlerOptions = {
+            dustWorkspaceId: 'test-workspace',
+            dustApiKey: 'test-key'
+        }
+
+        it('should fetch and format models with agent information', async () => {
+            const handler = new DustHandler(validOptions)
+            const mockAgentConfig = {
+                sId: 'agent-123',
+                name: 'Test Agent',
+                description: 'A test agent',
+                instructions: 'Test instructions',
+                pictureUrl: 'https://example.com/pic.jpg',
+                model: {
+                    modelId: 'claude-3-5-sonnet-20241022'
+                }
+            }
+
+            mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify([mockAgentConfig])))
+
+            const models = await handler.fetchAvailableModels()
+
+            expect(models['agent-123']).toBeDefined()
+            expect(models['agent-123']).toEqual(expect.objectContaining({
+                agentId: 'agent-123',
+                modelId: 'claude-3-5-sonnet-20241022',
+                agentName: 'Test Agent',
+                agentDescription: 'A test agent',
+                agentInstructions: 'Test instructions',
+                agentPictureUrl: 'https://example.com/pic.jpg',
+                maxTokens: 4096,
+                contextWindow: 200_000,
+                supportsImages: true,
+                supportsPromptCache: true
+            }))
+        })
+
+        it('should handle multiple agents', async () => {
+            const handler = new DustHandler(validOptions)
+            const mockAgentConfigs = [
+                {
+                    sId: 'agent-1',
+                    name: 'Agent 1',
+                    model: { modelId: 'claude-3-5-sonnet-20241022' }
+                },
+                {
+                    sId: 'agent-2',
+                    name: 'Agent 2',
+                    model: { modelId: 'claude-3-5-sonnet-20241022' }
+                }
+            ]
+
+            mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify(mockAgentConfigs)))
+
+            const models = await handler.fetchAvailableModels()
+            
+            expect(models['agent-1']).toBeDefined()
+            expect(models['agent-2']).toBeDefined()
+            expect(models['agent-1'].agentName).toBe('Agent 1')
+            expect(models['agent-2'].agentName).toBe('Agent 2')
+        })
+
+        it('should handle unknown model IDs with default values', async () => {
+            const handler = new DustHandler(validOptions)
+            const mockAgentConfig = {
+                sId: 'agent-123',
+                name: 'Test Agent',
+                model: {
+                    modelId: 'unknown-model'
+                }
+            }
+
+            mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify([mockAgentConfig])))
+
+            const models = await handler.fetchAvailableModels()
+
+            expect(models['agent-123']).toBeDefined()
+            expect(models['agent-123']).toEqual(expect.objectContaining({
+                agentId: 'agent-123',
+                modelId: 'unknown-model',
+                agentName: 'Test Agent',
+                supportsPromptCache: true,
+                supportsImages: true,
+                contextWindow: 200_000,
+                maxTokens: 4096
+            }))
+        })
+
+        it('should handle API errors', async () => {
+            const handler = new DustHandler(validOptions)
+            mockFetch.mockImplementationOnce(async () => new Response(null, { status: 401 }))
+
+            await expect(handler.fetchAvailableModels()).rejects.toThrow('Failed to fetch models: 401')
+        })
+    })
+
     describe('API request format', () => {
         const validOptions: ApiHandlerOptions = {
             dustWorkspaceId: 'test-workspace',
             dustApiKey: 'test-key',
-            apiModelId: 'claude-3-sonnet',
+            apiModelId: 'dust',
             dustBaseUrl: 'https://dust.tt'
         }
 
@@ -81,7 +178,6 @@ describe('DustHandler', () => {
             const stream = handler.createMessage(systemPrompt, messages)
             await stream.next()
 
-            // Verify conversation creation uses assistant ID
             expect(mockFetch).toHaveBeenNthCalledWith(1,
                 'https://dust.tt/api/v1/w/test-workspace/assistant/conversations',
                 expect.objectContaining({
@@ -106,17 +202,14 @@ describe('DustHandler', () => {
                 { role: 'user', content: 'Hello' }
             ]
 
-            // Mock conversation creation response
             mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify({
                 conversation: { sId: 'conv-123' }
             })))
 
-            // Mock message creation response
             mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify({
                 message: { sId: 'msg-123' }
             })))
 
-            // Mock events stream response
             mockFetch.mockImplementationOnce(async () => new Response(
                 new ReadableStream({
                     start(controller) {
@@ -127,9 +220,8 @@ describe('DustHandler', () => {
             ))
 
             const stream = handler.createMessage(systemPrompt, messages)
-            await stream.next() // Trigger the API calls
+            await stream.next()
 
-            // Verify conversation creation request
             expect(mockFetch).toHaveBeenNthCalledWith(1,
                 'https://dust.tt/api/v1/w/test-workspace/assistant/conversations',
                 {
@@ -142,7 +234,7 @@ describe('DustHandler', () => {
                         message: {
                             content: systemPrompt,
                             mentions: [{
-                                configurationId: 'claude-3-sonnet'
+                                configurationId: 'dust'
                             }]
                         },
                         visibility: 'unlisted',
@@ -151,7 +243,6 @@ describe('DustHandler', () => {
                 }
             )
 
-            // Verify message creation request
             expect(mockFetch).toHaveBeenNthCalledWith(2,
                 'https://dust.tt/api/v1/w/test-workspace/assistant/conversations/conv-123/messages',
                 {
@@ -163,13 +254,12 @@ describe('DustHandler', () => {
                     body: JSON.stringify({
                         content: messages[0].content,
                         mentions: [{
-                            configurationId: 'claude-3-sonnet'
+                            configurationId: 'dust'
                         }]
                     })
                 }
             )
 
-            // Verify events stream request
             expect(mockFetch).toHaveBeenNthCalledWith(3,
                 'https://dust.tt/api/v1/w/test-workspace/assistant/conversations/conv-123/messages/msg-123/events',
                 {
@@ -199,17 +289,14 @@ describe('DustHandler', () => {
                 }
             ]
 
-            // Mock conversation creation response
             mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify({
                 conversation: { sId: 'conv-123' }
             })))
 
-            // Mock message creation response
             mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify({
                 message: { sId: 'msg-123' }
             })))
 
-            // Mock events stream response
             mockFetch.mockImplementationOnce(async () => new Response(
                 new ReadableStream({
                     start(controller) {
@@ -233,23 +320,20 @@ describe('DustHandler', () => {
         const validOptions: ApiHandlerOptions = {
             dustWorkspaceId: 'test-workspace',
             dustApiKey: 'test-key',
-            apiModelId: 'claude-3-sonnet'
+            apiModelId: 'dust'
         }
 
         it('should handle streaming response correctly', async () => {
             const handler = new DustHandler(validOptions)
 
-            // Mock conversation creation
             mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify({
                 conversation: { sId: 'conv-123' }
             })))
 
-            // Mock message creation
             mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify({
                 message: { sId: 'msg-123' }
             })))
 
-            // Mock events stream
             mockFetch.mockImplementationOnce(async () => new Response(
                 new ReadableStream({
                     start(controller) {
@@ -285,12 +369,10 @@ describe('DustHandler', () => {
         it('should handle message creation error', async () => {
             const handler = new DustHandler(validOptions)
 
-            // Mock successful conversation creation
             mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify({
                 conversation: { sId: 'conv-123' }
             })))
 
-            // Mock failed message creation
             mockFetch.mockImplementationOnce(async () => new Response(null, { status: 400 }))
 
             const stream = handler.createMessage('system', [{ role: 'user', content: 'Hi' }])
@@ -300,17 +382,14 @@ describe('DustHandler', () => {
         it('should handle malformed event data', async () => {
             const handler = new DustHandler(validOptions)
 
-            // Mock successful conversation creation
             mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify({
                 conversation: { sId: 'conv-123' }
             })))
 
-            // Mock successful message creation
             mockFetch.mockImplementationOnce(async () => new Response(JSON.stringify({
                 message: { sId: 'msg-123' }
             })))
 
-            // Mock malformed events stream
             mockFetch.mockImplementationOnce(async () => new Response(
                 new ReadableStream({
                     start(controller) {
@@ -337,7 +416,7 @@ describe('DustHandler', () => {
                 dustApiKey: 'test-key'
             })
             const model = handler.getModel()
-            expect(model.id).toBe('claude-3-sonnet')
+            expect(model.id).toBe('dust')
             expect(model.info).toBeDefined()
             expect(model.info.maxTokens).toBe(4096)
         })
@@ -346,10 +425,10 @@ describe('DustHandler', () => {
             const handler = new DustHandler({
                 dustWorkspaceId: 'test-workspace',
                 dustApiKey: 'test-key',
-                apiModelId: 'claude-3-opus'
+                apiModelId: 'dust'
             })
             const model = handler.getModel()
-            expect(model.id).toBe('claude-3-opus')
+            expect(model.id).toBe('dust')
             expect(model.info).toBeDefined()
             expect(model.info.maxTokens).toBe(4096)
             expect(model.info.contextWindow).toBe(200_000)
@@ -362,9 +441,9 @@ describe('DustHandler', () => {
                 apiModelId: 'unknown-model'
             })
             const model = handler.getModel()
-            expect(model.id).toBe('unknown-model')
+            expect(model.id).toBe('dust')
             expect(model.info).toBeDefined()
-            expect(model.info).toEqual(expect.objectContaining(dustModels['claude-3-sonnet']))
+            expect(model.info).toEqual(expect.objectContaining(dustModels['dust']))
         })
     })
 })

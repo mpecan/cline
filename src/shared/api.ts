@@ -38,7 +38,7 @@ export interface ApiHandlerOptions {
 	dustBaseUrl?: string
 	dustApiKey?: string
 	dustAssistantId?: string
-	dustAvailableModels?: Record<string, ModelInfo>
+	dustAvailableModels?: Record<string, DustModelInfo>
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -60,21 +60,23 @@ export interface ModelInfo {
 	description?: string
 }
 
+// Dust-specific model information
+export interface DustModelInfo extends ModelInfo {
+	agentId: string // Made required
+	modelId: string // Added to track underlying model
+	agentName?: string
+	agentDescription?: string
+	agentInstructions?: string
+	agentPictureUrl?: string
+}
+
 // Dust
-export type DustModelId = keyof typeof dustModels
-export const dustDefaultModelId: DustModelId = "claude-3-sonnet"
+export type DustModelId = "dust" // Define directly instead of from dustModels
+export const dustDefaultModelId = "dust"
 export const dustModels = {
-	"claude-3-opus": {
-		maxTokens: 4096,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 15.0,
-		outputPrice: 75.0,
-		cacheWritesPrice: 18.75,
-		cacheReadsPrice: 1.5,
-	},
-	"claude-3-sonnet": {
+	"dust": {
+		agentId: "dust",
+		modelId: "claude-3-5-sonnet-20241022",
 		maxTokens: 4096,
 		contextWindow: 200_000,
 		supportsImages: true,
@@ -83,8 +85,8 @@ export const dustModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-	},
-} as const satisfies Record<string, ModelInfo>
+	}
+} as const satisfies Record<DustModelId, DustModelInfo>
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models

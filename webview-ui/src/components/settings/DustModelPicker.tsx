@@ -2,7 +2,7 @@ import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react";
 import Fuse from "fuse.js";
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
-import { dustDefaultModelId, DustModelId } from "../../../../src/shared/api";
+import { dustDefaultModelId } from "../../../../src/shared/api";
 import { useExtensionState } from "../../context/ExtensionStateContext";
 import { highlight } from "../history/HistoryView";
 import { ModelInfoView } from "./ApiOptions";
@@ -28,20 +28,21 @@ export const DustModelPicker: React.FC = () => {
         }
     }, [isCredentialsValid]);
 
-    const handleModelChange = (newModelId: string) => {
+    const handleModelChange = (newAgentId: string) => {
         setApiConfiguration({
             ...apiConfiguration,
-            dustAssistantId: newModelId as DustModelId,
+            dustAssistantId: newAgentId,
+            apiModelId: newAgentId, // Set both to maintain compatibility
         });
-        setSearchTerm(newModelId);
+        setSearchTerm(newAgentId);
     };
 
-    const { selectedModelId, selectedModelInfo } = useMemo(() => {
-        const modelId = (apiConfiguration?.dustAssistantId || dustDefaultModelId) as DustModelId;
+    const { selectedAgentId, selectedModelInfo } = useMemo(() => {
+        const agentId = apiConfiguration?.dustAssistantId || dustDefaultModelId;
         const models = apiConfiguration?.dustAvailableModels || {};
         return {
-            selectedModelId: modelId,
-            selectedModelInfo: models[modelId],
+            selectedAgentId: agentId,
+            selectedModelInfo: models[agentId],
         };
     }, [apiConfiguration]);
 
@@ -58,17 +59,25 @@ export const DustModelPicker: React.FC = () => {
         };
     }, []);
 
-    const modelIds = useMemo(() => {
+    const agentIds = useMemo(() => {
         const models = apiConfiguration?.dustAvailableModels || {};
-        return Object.keys(models).sort((a, b) => a.localeCompare(b));
+        return Object.keys(models).sort((a, b) => {
+            // Sort by agent name if available, otherwise by agent ID
+            const nameA = models[a]?.agentName || a;
+            const nameB = models[b]?.agentName || b;
+            return nameA.localeCompare(nameB);
+        });
     }, [apiConfiguration?.dustAvailableModels]);
 
     const searchableItems = useMemo(() => {
-        return modelIds.map((id) => ({
+        const models = apiConfiguration?.dustAvailableModels || {};
+        return agentIds.map((id) => ({
             id,
-            html: id,
+            name: models[id]?.agentName || id,
+            description: models[id]?.agentDescription || '',
+            html: models[id]?.agentName ? `${models[id].agentName} (${id})` : id,
         }));
-    }, [modelIds]);
+    }, [agentIds, apiConfiguration?.dustAvailableModels]);
 
     const modelSearchResults = useMemo(() => {
         if (!searchTerm) return searchableItems;
@@ -76,16 +85,18 @@ export const DustModelPicker: React.FC = () => {
         // Use exact match filtering for test environment
         if (process.env.NODE_ENV === 'test') {
             return searchableItems.filter(item => 
-                item.id.toLowerCase().includes(searchTerm.toLowerCase())
+                item.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                item.description.toLowerCase().includes(searchTerm.toLowerCase())
             ).map(item => ({
                 id: item.id,
-                html: item.id,
+                html: item.html,
             }));
         }
         
         // Use fuzzy search for production
         const fuse = new Fuse(searchableItems, {
-            keys: ["html"],
+            keys: ["name", "id", "description"],
             threshold: 0.3,
             shouldSort: true,
             isCaseSensitive: false,
@@ -128,8 +139,8 @@ export const DustModelPicker: React.FC = () => {
     };
 
     const hasInfo = useMemo(() => {
-        return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase());
-    }, [modelIds, searchTerm]);
+        return agentIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase());
+    }, [agentIds, searchTerm]);
 
     useEffect(() => {
         setSelectedIndex(-1);
@@ -159,12 +170,12 @@ export const DustModelPicker: React.FC = () => {
             </style>
             <div>
                 <label htmlFor="model-search">
-                    <span style={{ fontWeight: 500 }}>Model</span>
+                    <span style={{ fontWeight: 500 }}>Agent</span>
                 </label>
                 <DropdownWrapper ref={dropdownRef}>
                     <VSCodeTextField
                         id="model-search"
-                        placeholder={isCredentialsValid ? "Search and select a model..." : "Enter API Key and Workspace ID first"}
+                        placeholder={isCredentialsValid ? "Search and select an agent..." : "Enter API Key and Workspace ID first"}
                         value={searchTerm}
                         disabled={!isCredentialsValid}
                         onChange={(e) => {
@@ -225,7 +236,7 @@ export const DustModelPicker: React.FC = () => {
 
             {hasInfo && isCredentialsValid && (
                 <ModelInfoView
-                    selectedModelId={selectedModelId}
+                    selectedModelId={selectedAgentId}
                     modelInfo={selectedModelInfo}
                     isDescriptionExpanded={isDescriptionExpanded}
                     setIsDescriptionExpanded={setIsDescriptionExpanded}
