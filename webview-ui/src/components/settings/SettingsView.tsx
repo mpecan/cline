@@ -24,7 +24,7 @@ const SettingsView = ({ onDone }: SettingsViewProps) => {
 	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
 	const [modelIdErrorMessage, setModelIdErrorMessage] = useState<string | undefined>(undefined)
 	const handleSubmit = () => {
-		const apiValidationResult = validateApiConfiguration(apiConfiguration)
+		const apiValidationResult = apiConfiguration && validateApiConfiguration(apiConfiguration)
 		const modelIdValidationResult = validateModelId(apiConfiguration, openRouterModels)
 
 		setApiErrorMessage(apiValidationResult)

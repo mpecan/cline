@@ -2,7 +2,7 @@ import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextFie
 import React, { useState, FormEvent, useEffect } from "react";
 import { ApiConfiguration } from "../../../../src/shared/api";
 
-interface Assistant {
+interface Model {
     id: string;
     sId: string;
     name: string;
@@ -16,17 +16,17 @@ interface DustOptionsProps {
 
 export const DustOptions: React.FC<DustOptionsProps> = ({ apiConfiguration, onConfigurationChange }) => {
     const [dustBaseUrlSelected, setDustBaseUrlSelected] = useState(!!apiConfiguration?.dustBaseUrl);
-    const [assistants, setAssistants] = useState<Assistant[]>([]);
-    const [isLoadingAssistants, setIsLoadingAssistants] = useState(false);
+    const [models, setModels] = useState<Model[]>([]);
+    const [isLoadingModels, setIsLoadingModels] = useState(false);
 
     useEffect(() => {
-        const fetchAssistants = async () => {
+        const fetchModels = async () => {
             if (!apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId) {
-                setAssistants([]);
+                setModels([]);
                 return;
             }
 
-            setIsLoadingAssistants(true);
+            setIsLoadingModels(true);
             try {
                 const baseUrl = apiConfiguration.dustBaseUrl || 'https://dust.tt';
                 const response = await fetch(
@@ -40,20 +40,20 @@ export const DustOptions: React.FC<DustOptionsProps> = ({ apiConfiguration, onCo
                 );
 
                 if (!response?.ok) {
-                    throw new Error('Failed to fetch assistants');
+                    throw new Error('Failed to fetch models');
                 }
 
                 const data = await response.json();
-                setAssistants(data);
+                setModels(data);
             } catch (error) {
-                console.error('Error fetching assistants:', error);
-                setAssistants([]);
+                console.error('Error fetching models:', error);
+                setModels([]);
             } finally {
-                setIsLoadingAssistants(false);
+                setIsLoadingModels(false);
             }
         };
 
-        fetchAssistants();
+        fetchModels();
     }, [apiConfiguration?.dustApiKey, apiConfiguration?.dustWorkspaceId, apiConfiguration?.dustBaseUrl]);
 
     const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
@@ -92,18 +92,19 @@ export const DustOptions: React.FC<DustOptionsProps> = ({ apiConfiguration, onCo
                 style={{ width: "100%" }}
                 value={apiConfiguration?.dustAssistantId || ""}
                 onChange={(e: any) => onConfigurationChange("dustAssistantId", e.target.value)}
-                disabled={isLoadingAssistants || !apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId}>
-                <span slot="label" style={{ fontWeight: 500 }}>Assistant</span>
+                disabled={isLoadingModels || !apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId}>
+                <span slot="label" style={{ fontWeight: 500 }}>Model (Optional)</span>
+                <VSCodeOption value="">Select a model</VSCodeOption>
                 {!apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId ? (
                     <VSCodeOption value="">Enter API Key and Workspace ID first</VSCodeOption>
-                ) : isLoadingAssistants ? (
-                    <VSCodeOption value="">Loading assistants...</VSCodeOption>
-                ) : assistants.length === 0 ? (
-                    <VSCodeOption value="">No assistants found</VSCodeOption>
+                ) : isLoadingModels ? (
+                    <VSCodeOption value="">Loading models...</VSCodeOption>
+                ) : models.length === 0 ? (
+                    <VSCodeOption value="">No models found</VSCodeOption>
                 ) : (
-                    assistants.map(assistant => (
-                        <VSCodeOption key={assistant.sId} value={assistant.sId}>
-                            {assistant.name}
+                    models.map(model => (
+                        <VSCodeOption key={model.sId} value={model.sId}>
+                            {model.name}
                         </VSCodeOption>
                     ))
                 )}

@@ -17,7 +17,7 @@ const WelcomeView = () => {
 	}
 
 	useEffect(() => {
-		setApiErrorMessage(validateApiConfiguration(apiConfiguration))
+		apiConfiguration && setApiErrorMessage(validateApiConfiguration(apiConfiguration))
 	}, [apiConfiguration])
 
 	return (

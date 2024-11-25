@@ -632,6 +632,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 				selectedProvider !== "openai" &&
 				selectedProvider !== "ollama" &&
 				selectedProvider !== "lmstudio" &&
+				selectedProvider !== "dust" &&
 				showModelOptions && (
 					<>
 						<div className="dropdown-container">
@@ -643,7 +644,6 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
-							{selectedProvider === "dust" && createDropdown(dustModels)}
 						</div>
 
 						<ModelInfoView

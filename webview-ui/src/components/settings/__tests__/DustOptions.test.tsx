@@ -31,7 +31,7 @@ describe('DustOptions', () => {
             expect(screen.getByText('Dust Workspace ID')).toBeInTheDocument();
         });
         await waitFor(() => {
-            expect(screen.getByText('Assistant')).toBeInTheDocument();
+            expect(screen.getByText('Model')).toBeInTheDocument();
         });
         await waitFor(() => {
             expect(screen.getByText('Use custom base URL')).toBeInTheDocument();
@@ -109,7 +109,7 @@ describe('DustOptions', () => {
         expect(baseUrlInput).toHaveValue('https://custom.dust.tt');
     });
 
-    it('shows loading state when fetching assistants', async () => {
+    it('shows loading state when fetching models', async () => {
         mockFetch.mockImplementationOnce(() => new Promise(() => {})); // Never resolves to keep loading state
 
         render(
@@ -123,20 +123,20 @@ describe('DustOptions', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByText('Loading assistants...')).toBeInTheDocument();
+            expect(screen.getByText('Loading models...')).toBeInTheDocument();
         });
     });
 
-    it('fetches and displays assistants when API key and workspace ID are provided', async () => {
-        const mockAssistants = [
-            { sId: 'assistant1', name: 'Assistant 1' },
-            { sId: 'assistant2', name: 'Assistant 2' }
+    it('fetches and displays models when API key and workspace ID are provided', async () => {
+        const mockModels = [
+            { sId: 'model1', name: 'Model 1' },
+            { sId: 'model2', name: 'Model 2' }
         ];
 
         mockFetch.mockImplementationOnce(() => 
             Promise.resolve({
                 ok: true,
-                json: () => Promise.resolve(mockAssistants)
+                json: () => Promise.resolve(mockModels)
             })
         );
 
@@ -150,23 +150,23 @@ describe('DustOptions', () => {
             />
         );
 
-        const assistant1Text = await screen.findByText('Assistant 1');
-        expect(assistant1Text).toBeInTheDocument();
+        const model1Text = await screen.findByText('Model 1');
+        expect(model1Text).toBeInTheDocument();
 
-        const assistant2Text = await screen.findByText('Assistant 2');
-        expect(assistant2Text).toBeInTheDocument();
+        const model2Text = await screen.findByText('Model 2');
+        expect(model2Text).toBeInTheDocument();
     });
 
-    it('handles assistant selection', async () => {
-        const mockAssistants = [
-            { sId: 'assistant1', name: 'Assistant 1' },
-            { sId: 'assistant2', name: 'Assistant 2' }
+    it('handles model selection', async () => {
+        const mockModels = [
+            { sId: 'model1', name: 'Model 1' },
+            { sId: 'model2', name: 'Model 2' }
         ];
 
         mockFetch.mockImplementationOnce(() => 
             Promise.resolve({
                 ok: true,
-                json: () => Promise.resolve(mockAssistants)
+                json: () => Promise.resolve(mockModels)
             })
         );
 
@@ -180,15 +180,15 @@ describe('DustOptions', () => {
             />
         );
 
-        // Wait for assistants to load
-        await screen.findByText('Assistant 1');
-        await screen.findByText('Assistant 2');
+        // Wait for models to load
+        await screen.findByText('Model 1');
+        await screen.findByText('Model 2');
 
         const dropdown = await screen.findByTestId('vscode-dropdown');
-        fireEvent.change(dropdown, { target: { value: 'assistant1' } });
+        fireEvent.change(dropdown, { target: { value: 'model1' } });
         
         await waitFor(() => {
-            expect(mockOnConfigurationChange).toHaveBeenCalledWith('dustAssistantId', 'assistant1');
+            expect(mockOnConfigurationChange).toHaveBeenCalledWith('dustAssistantId', 'model1');
         });
     });
 
