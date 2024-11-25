@@ -18,6 +18,7 @@ export interface WebviewMessage {
 		| "resetState"
 		| "requestOllamaModels"
 		| "requestLmStudioModels"
+		| "requestDustModels"
 		| "openImage"
 		| "openFile"
 		| "openMention"

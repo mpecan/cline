@@ -1,8 +1,10 @@
 import { VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useExtensionState } from "../../context/ExtensionStateContext";
-import { DustHandler } from "../../../../src/api/providers/dust";
 import { DustModelPicker } from "../settings/DustModelPicker";
+import { useInterval, useEvent } from "react-use";
+import { vscode } from "../../utils/vscode";
+import { ExtensionMessage } from "../../../../src/shared/ExtensionMessage";
 
 type CheckboxEvent = Event | React.FormEvent<HTMLElement> | { target: { checked: boolean } };
 
@@ -12,37 +14,56 @@ export const DustOptions: React.FC = () => {
     const [isLoadingModels, setIsLoadingModels] = useState(false);
     const [modelError, setModelError] = useState<string | null>(null);
 
-    useEffect(() => {
-        const fetchModels = async () => {
-            if (!apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId) {
-                return;
-            }
+    const requestModels = useCallback(() => {
+        if (!apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId) {
+            return;
+        }
 
+        // Only show loading state on initial fetch
+        if (!apiConfiguration?.dustAvailableModels) {
             setIsLoadingModels(true);
-            setModelError(null);
+        }
+        setModelError(null);
 
-            try {
-                const handler = new DustHandler({
-                    dustApiKey: apiConfiguration.dustApiKey,
-                    dustWorkspaceId: apiConfiguration.dustWorkspaceId,
-                    dustBaseUrl: apiConfiguration.dustBaseUrl,
-                });
+        vscode.postMessage({ 
+            type: "requestDustModels", 
+            text: JSON.stringify({
+                apiKey: apiConfiguration.dustApiKey,
+                workspaceId: apiConfiguration.dustWorkspaceId,
+                baseUrl: apiConfiguration.dustBaseUrl
+            })
+        });
+    }, [apiConfiguration?.dustApiKey, apiConfiguration?.dustWorkspaceId, apiConfiguration?.dustBaseUrl]);
 
-                const models = await handler.fetchAvailableModels();
+    // Handle messages from the extension
+    const handleMessage = useCallback((event: MessageEvent<any>) => {
+        const message: ExtensionMessage = event.data;
+        if (message.type === "dustModels") {
+            setIsLoadingModels(false);
+            if (Object.keys(message.dustModels || {}).length === 0) {
+                setModelError("No models found. Please check your credentials.");
+            } else {
+                setModelError(null);
                 setApiConfiguration({
                     ...apiConfiguration,
-                    dustAvailableModels: models,
+                    dustAvailableModels: message.dustModels,
                 });
-            } catch (error) {
-                console.error("Failed to fetch Dust models:", error);
-                setModelError("Failed to fetch available models. Please check your credentials.");
-            } finally {
-                setIsLoadingModels(false);
             }
-        };
+        }
+    }, [apiConfiguration, setApiConfiguration]);
 
-        fetchModels();
-    }, [apiConfiguration?.dustApiKey, apiConfiguration?.dustWorkspaceId, apiConfiguration?.dustBaseUrl]);
+    useEvent("message", handleMessage);
+
+    // Initial fetch when credentials change
+    useEffect(() => {
+        requestModels();
+    }, [apiConfiguration?.dustApiKey, apiConfiguration?.dustWorkspaceId, apiConfiguration?.dustBaseUrl, requestModels]);
+
+    // Poll for models every 2 seconds if we have valid credentials
+    useInterval(
+        requestModels,
+        apiConfiguration?.dustApiKey && apiConfiguration?.dustWorkspaceId ? 2000 : null
+    );
 
     const handleConfigurationChange = (field: string, value: string) => {
         setApiConfiguration({

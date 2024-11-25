@@ -11,6 +11,7 @@ export interface ExtensionMessage {
 		| "selectedImages"
 		| "ollamaModels"
 		| "lmStudioModels"
+		| "dustModels"
 		| "theme"
 		| "workspaceUpdated"
 		| "invoke"
@@ -23,6 +24,7 @@ export interface ExtensionMessage {
 	images?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
+	dustModels?: Record<string, ModelInfo>
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>

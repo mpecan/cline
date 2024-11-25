@@ -1,3 +1,4 @@
+// Only updating the type definitions at the top of the file
 import { Anthropic } from "@anthropic-ai/sdk"
 import axios from "axios"
 import fs from "fs/promises"
@@ -11,6 +12,7 @@ import { selectImages } from "../../integrations/misc/process-images"
 import { getTheme } from "../../integrations/theme/getTheme"
 import WorkspaceTracker from "../../integrations/workspace/WorkspaceTracker"
 import { ApiProvider, ModelInfo } from "../../shared/api"
+import { DustHandler } from "../../api/providers/dust"
 import { findLast } from "../../shared/array"
 import { ExtensionMessage } from "../../shared/ExtensionMessage"
 import { HistoryItem } from "../../shared/HistoryItem"
@@ -36,6 +38,8 @@ type SecretKey =
 	| "openAiApiKey"
 	| "geminiApiKey"
 	| "openAiNativeApiKey"
+	| "dustApiKey"
+
 type GlobalStateKey =
 	| "apiProvider"
 	| "apiModelId"
@@ -57,6 +61,10 @@ type GlobalStateKey =
 	| "azureApiVersion"
 	| "openRouterModelId"
 	| "openRouterModelInfo"
+	| "dustWorkspaceId"
+	| "dustBaseUrl"
+	| "dustAssistantId"
+	| "dustAvailableModels"
 
 export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
@@ -65,7 +73,7 @@ export const GlobalFileNames = {
 }
 
 export class ClineProvider implements vscode.WebviewViewProvider {
-	public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
+    public static readonly sideBarId = "claude-dev.SidebarProvider" // used in package.json as the view's id. This value cannot be changed due to how vscode caches views based on their id, and updating the id would break existing instances of the extension.
 	public static readonly tabPanelId = "claude-dev.TabPanelProvider"
 	private static activeInstances: Set<ClineProvider> = new Set()
 	private disposables: vscode.Disposable[] = []
@@ -214,7 +222,25 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 		await this.view?.webview.postMessage(message)
 	}
 
-	/**
+    // Dust
+	async getDustModels(apiKey?: string, workspaceId?: string, baseUrl?: string) {
+        try {
+            if (!apiKey || !workspaceId) {
+                return {}
+            }
+            const handler = new DustHandler({
+                dustApiKey: apiKey,
+                dustWorkspaceId: workspaceId,
+                dustBaseUrl: baseUrl
+            })
+            return await handler.fetchAvailableModels()
+        } catch (error) {
+            console.error("Error fetching Dust models:", error)
+            return {}
+        }
+    }
+
+/**
 	 * Defines and returns the HTML that should be rendered within the webview panel.
 	 *
 	 * @remarks This is also the place where references to the React webview build files
@@ -301,11 +327,11 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	 *
 	 * @param webview A reference to the extension webview
 	 */
-	private setWebviewMessageListener(webview: vscode.Webview) {
-		webview.onDidReceiveMessage(
-			async (message: WebviewMessage) => {
-				switch (message.type) {
-					case "webviewDidLaunch":
+    private setWebviewMessageListener(webview: vscode.Webview) {
+        webview.onDidReceiveMessage(
+            async (message: WebviewMessage) => {
+                switch (message.type) {
+                    case "webviewDidLaunch":
 						this.postStateToWebview()
 						this.workspaceTracker?.initializeFilePaths() // don't await
 						getTheme().then((theme) =>
@@ -323,7 +349,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						this.refreshOpenRouterModels().then(async (openRouterModels) => {
 							if (openRouterModels) {
 								// update model info in state (this needs to be done here since we don't want to update state while settings is open, and we may refresh models there)
-								const { apiConfiguration } = await this.getState()
+                        const { apiConfiguration } = await this.getState()
 								if (apiConfiguration.openRouterModelId) {
 									await this.updateGlobalState(
 										"openRouterModelInfo",
@@ -333,7 +359,7 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								}
 							}
 						})
-						break
+                        break
 					case "newTask":
 						// Code that should run in response to the hello message command
 						//vscode.window.showInformationMessage(message.text!)
@@ -485,14 +511,28 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						}
 
 						break
-					// Add more switch case statements here as more webview message commands
+					case "requestDustModels":
+						try {
+							const params = JSON.parse(message.text || "{}")
+							const dustModels = await this.getDustModels(
+								params.apiKey,
+								params.workspaceId,
+								params.baseUrl
+							)
+							await this.updateGlobalState("dustAvailableModels", dustModels)
+							this.postMessageToWebview({ type: "dustModels", dustModels })
+						} catch (error) {
+							console.error("Error handling dust models request:", error)
+						}
+						break
+                    // Add more switch case statements here as more webview message commands
 					// are created within the webview context (i.e. inside media/main.js)
-				}
-			},
-			null,
-			this.disposables,
-		)
-	}
+                }
+            },
+            null,
+            this.disposables,
+        )
+}
 
 	async updateCustomInstructions(instructions?: string) {
 		// User may be clearing the field
@@ -849,37 +889,42 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 	https://www.eliostruyf.com/devhack-code-extension-storage-options/
 	*/
 
-	async getState() {
-		const [
-			storedApiProvider,
-			apiModelId,
-			apiKey,
-			openRouterApiKey,
-			awsAccessKey,
-			awsSecretKey,
-			awsSessionToken,
-			awsRegion,
-			awsUseCrossRegionInference,
-			vertexProjectId,
-			vertexRegion,
-			openAiBaseUrl,
-			openAiApiKey,
-			openAiModelId,
-			ollamaModelId,
-			ollamaBaseUrl,
-			lmStudioModelId,
-			lmStudioBaseUrl,
-			anthropicBaseUrl,
-			geminiApiKey,
-			openAiNativeApiKey,
-			azureApiVersion,
-			openRouterModelId,
-			openRouterModelInfo,
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly,
-			taskHistory,
-		] = await Promise.all([
+    async getState() {
+        const [
+            storedApiProvider,
+            apiModelId,
+            apiKey,
+            openRouterApiKey,
+            awsAccessKey,
+            awsSecretKey,
+            awsSessionToken,
+            awsRegion,
+            awsUseCrossRegionInference,
+            vertexProjectId,
+            vertexRegion,
+            openAiBaseUrl,
+            openAiApiKey,
+            openAiModelId,
+            ollamaModelId,
+            ollamaBaseUrl,
+            lmStudioModelId,
+            lmStudioBaseUrl,
+            anthropicBaseUrl,
+            geminiApiKey,
+            openAiNativeApiKey,
+            azureApiVersion,
+            openRouterModelId,
+            openRouterModelInfo,
+            lastShownAnnouncementId,
+            customInstructions,
+            alwaysAllowReadOnly,
+            taskHistory,
+            dustApiKey,
+            dustWorkspaceId,
+            dustBaseUrl,
+            dustAssistantId,
+            dustAvailableModels,
+        ] = await Promise.all([
 			this.getGlobalState("apiProvider") as Promise<ApiProvider | undefined>,
 			this.getGlobalState("apiModelId") as Promise<string | undefined>,
 			this.getSecret("apiKey") as Promise<string | undefined>,
@@ -908,7 +953,12 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			this.getGlobalState("customInstructions") as Promise<string | undefined>,
 			this.getGlobalState("alwaysAllowReadOnly") as Promise<boolean | undefined>,
 			this.getGlobalState("taskHistory") as Promise<HistoryItem[] | undefined>,
-		])
+            this.getSecret("dustApiKey") as Promise<string | undefined>,
+            this.getGlobalState("dustWorkspaceId") as Promise<string | undefined>,
+            this.getGlobalState("dustBaseUrl") as Promise<string | undefined>,
+            this.getGlobalState("dustAssistantId") as Promise<string | undefined>,
+            this.getGlobalState("dustAvailableModels") as Promise<Record<string, ModelInfo> | undefined>,
+        ])
 
 		let apiProvider: ApiProvider
 		if (storedApiProvider) {
@@ -924,39 +974,44 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			}
 		}
 
-		return {
-			apiConfiguration: {
-				apiProvider,
-				apiModelId,
-				apiKey,
-				openRouterApiKey,
-				awsAccessKey,
-				awsSecretKey,
-				awsSessionToken,
-				awsRegion,
-				awsUseCrossRegionInference,
-				vertexProjectId,
-				vertexRegion,
-				openAiBaseUrl,
-				openAiApiKey,
-				openAiModelId,
-				ollamaModelId,
-				ollamaBaseUrl,
-				lmStudioModelId,
-				lmStudioBaseUrl,
-				anthropicBaseUrl,
-				geminiApiKey,
-				openAiNativeApiKey,
-				azureApiVersion,
-				openRouterModelId,
-				openRouterModelInfo,
-			},
-			lastShownAnnouncementId,
-			customInstructions,
-			alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
-			taskHistory,
-		}
-	}
+        return {
+            apiConfiguration: {
+                apiProvider,
+                apiModelId,
+                apiKey,
+                openRouterApiKey,
+                awsAccessKey,
+                awsSecretKey,
+                awsSessionToken,
+                awsRegion,
+                awsUseCrossRegionInference,
+                vertexProjectId,
+                vertexRegion,
+                openAiBaseUrl,
+                openAiApiKey,
+                openAiModelId,
+                ollamaModelId,
+                ollamaBaseUrl,
+                lmStudioModelId,
+                lmStudioBaseUrl,
+                anthropicBaseUrl,
+                geminiApiKey,
+                openAiNativeApiKey,
+                azureApiVersion,
+                openRouterModelId,
+                openRouterModelInfo,
+                dustApiKey,
+                dustWorkspaceId,
+                dustBaseUrl,
+                dustAssistantId,
+                dustAvailableModels,
+            },
+            lastShownAnnouncementId,
+            customInstructions,
+            alwaysAllowReadOnly: alwaysAllowReadOnly ?? false,
+            taskHistory,
+        }
+    }
 
 	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
 		const history = ((await this.getGlobalState("taskHistory")) as HistoryItem[]) || []
@@ -1016,30 +1071,31 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 
 	// dev
 
-	async resetState() {
-		vscode.window.showInformationMessage("Resetting state...")
-		for (const key of this.context.globalState.keys()) {
-			await this.context.globalState.update(key, undefined)
-		}
-		const secretKeys: SecretKey[] = [
-			"apiKey",
-			"openRouterApiKey",
-			"awsAccessKey",
-			"awsSecretKey",
-			"awsSessionToken",
-			"openAiApiKey",
-			"geminiApiKey",
-			"openAiNativeApiKey",
-		]
-		for (const key of secretKeys) {
-			await this.storeSecret(key, undefined)
-		}
-		if (this.cline) {
-			this.cline.abortTask()
-			this.cline = undefined
-		}
-		vscode.window.showInformationMessage("State reset")
-		await this.postStateToWebview()
-		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
-	}
+    async resetState() {
+        vscode.window.showInformationMessage("Resetting state...")
+        for (const key of this.context.globalState.keys()) {
+            await this.context.globalState.update(key, undefined)
+        }
+        const secretKeys: SecretKey[] = [
+            "apiKey",
+            "openRouterApiKey",
+            "awsAccessKey",
+            "awsSecretKey",
+            "awsSessionToken",
+            "openAiApiKey",
+            "geminiApiKey",
+            "openAiNativeApiKey",
+            "dustApiKey",
+        ]
+        for (const key of secretKeys) {
+            await this.storeSecret(key, undefined)
+        }
+        if (this.cline) {
+            this.cline.abortTask()
+            this.cline = undefined
+        }
+        vscode.window.showInformationMessage("State reset")
+        await this.postStateToWebview()
+        await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
+    }
 }
