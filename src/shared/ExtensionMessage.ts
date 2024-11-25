@@ -1,6 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
-import { ApiConfiguration, ModelInfo } from "./api"
+import { ApiConfiguration, DustModelInfo, ModelInfo } from "./api"
 import { HistoryItem } from "./HistoryItem"
 
 // webview will hold state
@@ -24,7 +24,7 @@ export interface ExtensionMessage {
 	images?: string[]
 	ollamaModels?: string[]
 	lmStudioModels?: string[]
-	dustModels?: Record<string, ModelInfo>
+	dustModels?: Record<string, DustModelInfo>
 	filePaths?: string[]
 	partialMessage?: ClineMessage
 	openRouterModels?: Record<string, ModelInfo>
