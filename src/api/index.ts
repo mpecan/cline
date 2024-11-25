@@ -1,4 +1,3 @@
-import { Anthropic } from "@anthropic-ai/sdk"
 import { ApiConfiguration, ModelInfo } from "../shared/api"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AwsBedrockHandler } from "./providers/bedrock"
@@ -9,10 +8,16 @@ import { OllamaHandler } from "./providers/ollama"
 import { LmStudioHandler } from "./providers/lmstudio"
 import { GeminiHandler } from "./providers/gemini"
 import { OpenAiNativeHandler } from "./providers/openai-native"
+import { DustHandler } from "./providers/dust"
 import { ApiStream } from "./transform/stream"
 
+export interface Message {
+	role: string
+	content: string | Array<{ type: string; text?: string; image_url?: string }>
+}
+
 export interface ApiHandler {
-	createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream
+	createMessage(systemPrompt: string, messages: Message[]): ApiStream
 	getModel(): { id: string; info: ModelInfo }
 }
 
@@ -37,6 +42,8 @@ export function buildApiHandler(configuration: ApiConfiguration): ApiHandler {
 			return new GeminiHandler(options)
 		case "openai-native":
 			return new OpenAiNativeHandler(options)
+		case "dust":
+			return new DustHandler(options)
 		default:
 			return new AnthropicHandler(options)
 	}

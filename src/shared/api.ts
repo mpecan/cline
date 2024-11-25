@@ -8,6 +8,7 @@ export type ApiProvider =
 	| "lmstudio"
 	| "gemini"
 	| "openai-native"
+	| "dust"
 
 export interface ApiHandlerOptions {
 	apiModelId?: string
@@ -33,6 +34,10 @@ export interface ApiHandlerOptions {
 	geminiApiKey?: string
 	openAiNativeApiKey?: string
 	azureApiVersion?: string
+	dustWorkspaceId?: string
+	dustBaseUrl?: string
+	dustApiKey?: string
+	dustAssistantId?: string
 }
 
 export type ApiConfiguration = ApiHandlerOptions & {
@@ -53,6 +58,32 @@ export interface ModelInfo {
 	cacheReadsPrice?: number
 	description?: string
 }
+
+// Dust
+export type DustModelId = keyof typeof dustModels
+export const dustDefaultModelId: DustModelId = "claude-3-sonnet"
+export const dustModels = {
+	"claude-3-opus": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 15.0,
+		outputPrice: 75.0,
+		cacheWritesPrice: 18.75,
+		cacheReadsPrice: 1.5,
+	},
+	"claude-3-sonnet": {
+		maxTokens: 4096,
+		contextWindow: 200_000,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 3.0,
+		outputPrice: 15.0,
+		cacheWritesPrice: 3.75,
+		cacheReadsPrice: 0.3,
+	},
+} as const satisfies Record<string, ModelInfo>
 
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models

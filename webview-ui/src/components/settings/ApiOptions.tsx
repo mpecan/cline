@@ -17,6 +17,8 @@ import {
 	azureOpenAiDefaultApiVersion,
 	bedrockDefaultModelId,
 	bedrockModels,
+	dustDefaultModelId,
+	dustModels,
 	geminiDefaultModelId,
 	geminiModels,
 	openAiModelInfoSaneDefaults,
@@ -35,6 +37,7 @@ import OpenRouterModelPicker, {
 	ModelDescriptionMarkdown,
 	OPENROUTER_MODEL_PICKER_Z_INDEX,
 } from "./OpenRouterModelPicker"
+import { DustOptions } from "./DustOptions"
 
 interface ApiOptionsProps {
 	showModelOptions: boolean
@@ -135,8 +138,18 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 					<VSCodeOption value="openai">OpenAI Compatible</VSCodeOption>
 					<VSCodeOption value="lmstudio">LM Studio</VSCodeOption>
 					<VSCodeOption value="ollama">Ollama</VSCodeOption>
+					<VSCodeOption value="dust">Dust</VSCodeOption>
 				</VSCodeDropdown>
 			</div>
+
+			{selectedProvider === "dust" && (
+				<DustOptions 
+					apiConfiguration={apiConfiguration}
+					onConfigurationChange={(field, value) => {
+						setApiConfiguration({ ...apiConfiguration, [field]: value })
+					}}
+				/>
+			)}
 
 			{selectedProvider === "anthropic" && (
 				<div>
@@ -630,6 +643,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 							{selectedProvider === "vertex" && createDropdown(vertexModels)}
 							{selectedProvider === "gemini" && createDropdown(geminiModels)}
 							{selectedProvider === "openai-native" && createDropdown(openAiNativeModels)}
+							{selectedProvider === "dust" && createDropdown(dustModels)}
 						</div>
 
 						<ModelInfoView
@@ -816,6 +830,8 @@ export function normalizeApiConfiguration(apiConfiguration?: ApiConfiguration) {
 			return getProviderData(geminiModels, geminiDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "dust":
+			return getProviderData(dustModels, dustDefaultModelId)
 		case "openrouter":
 			return {
 				selectedProvider: provider,
