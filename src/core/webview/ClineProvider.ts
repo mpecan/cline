@@ -398,6 +398,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 								azureApiVersion,
 								openRouterModelId,
 								openRouterModelInfo,
+								dustWorkspaceId,
+								dustBaseUrl,
+								dustApiKey,
+								dustAssistantId
 							} = message.apiConfiguration
 							await this.updateGlobalState("apiProvider", apiProvider)
 							await this.updateGlobalState("apiModelId", apiModelId)
@@ -423,6 +427,10 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							await this.updateGlobalState("azureApiVersion", azureApiVersion)
 							await this.updateGlobalState("openRouterModelId", openRouterModelId)
 							await this.updateGlobalState("openRouterModelInfo", openRouterModelInfo)
+							await this.updateGlobalState("dustWorkspaceId", dustWorkspaceId)
+							await this.updateGlobalState("dustBaseUrl", dustBaseUrl)
+							await this.storeSecret("dustApiKey", dustApiKey)
+							await this.updateGlobalState("dustAssistantId", dustAssistantId)
 							if (this.cline) {
 								this.cline.api = buildApiHandler(message.apiConfiguration)
 							}
