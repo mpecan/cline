@@ -37,7 +37,7 @@ export class DustHandler implements ApiHandler {
 				message: {
 					content: systemPrompt,
 					mentions: [{
-						configurationId: this.options.dustAssistantId || this.options.apiModelId || dustDefaultModelId
+						configurationId: this.options.apiModelId || dustDefaultModelId
 					}]
 				},
 				visibility: "unlisted",
@@ -65,7 +65,7 @@ export class DustHandler implements ApiHandler {
 					body: JSON.stringify({
 						content: msg.content,
 						mentions: [{
-							configurationId: this.options.dustAssistantId || this.options.apiModelId || dustDefaultModelId
+							configurationId: this.options.apiModelId || dustDefaultModelId
 						}]
 					}),
 				}
