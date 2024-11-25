@@ -143,12 +143,7 @@ const ApiOptions = ({ showModelOptions, apiErrorMessage, modelIdErrorMessage }: 
 			</div>
 
 			{selectedProvider === "dust" && (
-				<DustOptions 
-					apiConfiguration={apiConfiguration}
-					onConfigurationChange={(field, value) => {
-						setApiConfiguration({ ...apiConfiguration, [field]: value })
-					}}
-				/>
+				<DustOptions />
 			)}
 
 			{selectedProvider === "anthropic" && (

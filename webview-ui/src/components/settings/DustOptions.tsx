@@ -1,70 +1,35 @@
-import { VSCodeCheckbox, VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react";
-import React, { useState, FormEvent, useEffect } from "react";
-import { ApiConfiguration } from "../../../../src/shared/api";
+import { VSCodeCheckbox, VSCodeLink, VSCodeTextField } from "@vscode/webview-ui-toolkit/react";
+import React, { useState } from "react";
+import { useExtensionState } from "../../context/ExtensionStateContext";
+import { DustModelPicker } from "./DustModelPicker";
 
-interface Model {
-    id: string;
-    sId: string;
-    name: string;
-    description?: string;
-}
+type CheckboxEvent = Event | React.FormEvent<HTMLElement> | { target: { checked: boolean } };
 
-interface DustOptionsProps {
-    apiConfiguration?: Partial<ApiConfiguration>;
-    onConfigurationChange: (field: keyof ApiConfiguration, value: string) => void;
-}
-
-export const DustOptions: React.FC<DustOptionsProps> = ({ apiConfiguration, onConfigurationChange }) => {
+export const DustOptions: React.FC = () => {
+    const { apiConfiguration, setApiConfiguration } = useExtensionState();
     const [dustBaseUrlSelected, setDustBaseUrlSelected] = useState(!!apiConfiguration?.dustBaseUrl);
-    const [models, setModels] = useState<Model[]>([]);
-    const [isLoadingModels, setIsLoadingModels] = useState(false);
 
-    useEffect(() => {
-        const fetchModels = async () => {
-            if (!apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId) {
-                setModels([]);
-                return;
-            }
-
-            setIsLoadingModels(true);
-            try {
-                const baseUrl = apiConfiguration.dustBaseUrl || 'https://dust.tt';
-                const response = await fetch(
-                    `${baseUrl}/api/v1/w/${apiConfiguration.dustWorkspaceId}/assistant/agent_configurations`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${apiConfiguration.dustApiKey}`,
-                            'Content-Type': 'application/json',
-                        },
-                    }
-                );
-
-                if (!response?.ok) {
-                    throw new Error('Failed to fetch models');
-                }
-
-                const data = await response.json();
-                setModels(data);
-            } catch (error) {
-                console.error('Error fetching models:', error);
-                setModels([]);
-            } finally {
-                setIsLoadingModels(false);
-            }
-        };
-
-        fetchModels();
-    }, [apiConfiguration?.dustApiKey, apiConfiguration?.dustWorkspaceId, apiConfiguration?.dustBaseUrl]);
-
-    const handleInputChange = (field: keyof ApiConfiguration) => (event: any) => {
-        onConfigurationChange(field, event.target.value);
+    const handleConfigurationChange = (field: string, value: string) => {
+        setApiConfiguration({
+            ...apiConfiguration,
+            [field]: value,
+        });
     };
 
-    const handleCheckboxChange = (e: Event | FormEvent<HTMLElement>) => {
-        const checkbox = (e.target as HTMLInputElement);
-        setDustBaseUrlSelected(checkbox.checked);
-        if (!checkbox.checked) {
-            onConfigurationChange("dustBaseUrl", "");
+    const handleCheckboxChange = (e: CheckboxEvent) => {
+        let checked: boolean;
+        
+        if (e instanceof Event) {
+            checked = (e.target as HTMLInputElement).checked;
+        } else if ('target' in e && 'checked' in e.target) {
+            checked = e.target.checked;
+        } else {
+            checked = ((e as React.FormEvent<HTMLElement>).target as HTMLInputElement).checked;
+        }
+            
+        setDustBaseUrlSelected(checked);
+        if (!checked) {
+            handleConfigurationChange("dustBaseUrl", "");
         }
     };
 
@@ -74,7 +39,7 @@ export const DustOptions: React.FC<DustOptionsProps> = ({ apiConfiguration, onCo
                 value={apiConfiguration?.dustApiKey || ""}
                 style={{ width: "100%" }}
                 type="password"
-                onInput={handleInputChange("dustApiKey")}
+                onInput={(e) => handleConfigurationChange("dustApiKey", (e.target as HTMLInputElement).value)}
                 placeholder="Enter API Key...">
                 <span style={{ fontWeight: 500 }}>Dust API Key</span>
             </VSCodeTextField>
@@ -82,33 +47,13 @@ export const DustOptions: React.FC<DustOptionsProps> = ({ apiConfiguration, onCo
             <VSCodeTextField
                 value={apiConfiguration?.dustWorkspaceId || ""}
                 style={{ width: "100%" }}
-                onInput={handleInputChange("dustWorkspaceId")}
+                onInput={(e) => handleConfigurationChange("dustWorkspaceId", (e.target as HTMLInputElement).value)}
                 placeholder="Enter Workspace ID..."
                 required>
                 <span style={{ fontWeight: 500 }}>Dust Workspace ID</span>
             </VSCodeTextField>
 
-            <VSCodeDropdown
-                style={{ width: "100%" }}
-                value={apiConfiguration?.dustAssistantId || ""}
-                onChange={(e: any) => onConfigurationChange("dustAssistantId", e.target.value)}
-                disabled={isLoadingModels || !apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId}>
-                <span slot="label" style={{ fontWeight: 500 }}>Model (Optional)</span>
-                <VSCodeOption value="">Select a model</VSCodeOption>
-                {!apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId ? (
-                    <VSCodeOption value="">Enter API Key and Workspace ID first</VSCodeOption>
-                ) : isLoadingModels ? (
-                    <VSCodeOption value="">Loading models...</VSCodeOption>
-                ) : models.length === 0 ? (
-                    <VSCodeOption value="">No models found</VSCodeOption>
-                ) : (
-                    models.map(model => (
-                        <VSCodeOption key={model.sId} value={model.sId}>
-                            {model.name}
-                        </VSCodeOption>
-                    ))
-                )}
-            </VSCodeDropdown>
+            <DustModelPicker />
 
             <VSCodeCheckbox
                 checked={dustBaseUrlSelected}
@@ -121,7 +66,7 @@ export const DustOptions: React.FC<DustOptionsProps> = ({ apiConfiguration, onCo
                     value={apiConfiguration?.dustBaseUrl || ""}
                     style={{ width: "100%", marginTop: 3 }}
                     type="url"
-                    onInput={handleInputChange("dustBaseUrl")}
+                    onInput={(e) => handleConfigurationChange("dustBaseUrl", (e.target as HTMLInputElement).value)}
                     placeholder="Default: https://dust.tt"
                 />
             )}

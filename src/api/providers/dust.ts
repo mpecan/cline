@@ -26,6 +26,8 @@ export class DustHandler implements ApiHandler {
 	}
 
 	async *createMessage(systemPrompt: string, messages: Anthropic.Messages.MessageParam[]): ApiStream {
+		const configurationId = this.options.dustAssistantId || this.options.apiModelId || dustDefaultModelId
+
 		// First create a conversation
 		const conversationResponse = await fetch(`${this.baseUrl}/api/v1/w/${this.workspaceId}/assistant/conversations`, {
 			method: "POST",
@@ -37,7 +39,7 @@ export class DustHandler implements ApiHandler {
 				message: {
 					content: systemPrompt,
 					mentions: [{
-						configurationId: this.options.apiModelId || dustDefaultModelId
+						configurationId
 					}]
 				},
 				visibility: "unlisted",
@@ -65,7 +67,7 @@ export class DustHandler implements ApiHandler {
 					body: JSON.stringify({
 						content: msg.content,
 						mentions: [{
-							configurationId: this.options.apiModelId || dustDefaultModelId
+							configurationId
 						}]
 					}),
 				}
