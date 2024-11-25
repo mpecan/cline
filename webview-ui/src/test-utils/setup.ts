@@ -26,6 +26,7 @@ interface VSCodeTextFieldProps {
     type?: string;
     style?: React.CSSProperties;
     id?: string;
+    disabled?: boolean;
 }
 
 interface VSCodeCheckboxProps {
@@ -55,7 +56,7 @@ interface VSCodeOptionProps {
 
 // Mock VSCode webview UI toolkit components -- ensure these are always typed 
 jest.mock('@vscode/webview-ui-toolkit/react', () => ({
-    VSCodeTextField: ({ children, value, onInput, onFocus, onKeyDown, placeholder, type, style, id }: VSCodeTextFieldProps) => {
+    VSCodeTextField: ({ children, value, onInput, onFocus, onKeyDown, placeholder, type, style, id, disabled }: VSCodeTextFieldProps) => {
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             onInput?.({ target: { value: e.target.value } });
         };
@@ -71,6 +72,7 @@ jest.mock('@vscode/webview-ui-toolkit/react', () => ({
                 placeholder,
                 type,
                 style,
+                disabled,
                 'data-testid': 'vscode-text-field',
                 role: 'textbox'
             })

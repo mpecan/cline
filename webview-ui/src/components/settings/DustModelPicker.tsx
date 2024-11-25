@@ -17,6 +17,13 @@ export const DustModelPicker: React.FC = () => {
     const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
     const dropdownListRef = useRef<HTMLDivElement>(null);
 
+    // Reset model selection when API key or WorkspaceID changes
+    useEffect(() => {
+        if (!apiConfiguration?.dustApiKey || !apiConfiguration?.dustWorkspaceId) {
+            handleModelChange(dustDefaultModelId);
+        }
+    }, [apiConfiguration?.dustApiKey, apiConfiguration?.dustWorkspaceId]);
+
     const handleModelChange = (newModelId: string) => {
         setApiConfiguration({
             ...apiConfiguration,
@@ -106,6 +113,10 @@ export const DustModelPicker: React.FC = () => {
         return modelIds.some((id) => id.toLowerCase() === searchTerm.toLowerCase());
     }, [modelIds, searchTerm]);
 
+    const isCredentialsValid = useMemo(() => {
+        return !!(apiConfiguration?.dustApiKey && apiConfiguration?.dustWorkspaceId);
+    }, [apiConfiguration?.dustApiKey, apiConfiguration?.dustWorkspaceId]);
+
     useEffect(() => {
         setSelectedIndex(-1);
         if (dropdownListRef.current) {
@@ -139,13 +150,14 @@ export const DustModelPicker: React.FC = () => {
                 <DropdownWrapper ref={dropdownRef}>
                     <VSCodeTextField
                         id="model-search"
-                        placeholder="Search and select a model..."
+                        placeholder={isCredentialsValid ? "Search and select a model..." : "Enter API Key and Workspace ID first"}
                         value={searchTerm}
+                        disabled={!isCredentialsValid}
                         onInput={(e) => {
                             handleModelChange((e.target as HTMLInputElement)?.value?.toLowerCase());
                             setIsDropdownVisible(true);
                         }}
-                        onFocus={() => setIsDropdownVisible(true)}
+                        onFocus={() => isCredentialsValid && setIsDropdownVisible(true)}
                         onKeyDown={handleKeyDown}
                         style={{ width: "100%", zIndex: DUST_MODEL_PICKER_Z_INDEX, position: "relative" }}>
                         {searchTerm && (
@@ -166,7 +178,7 @@ export const DustModelPicker: React.FC = () => {
                             />
                         )}
                     </VSCodeTextField>
-                    {isDropdownVisible && (
+                    {isDropdownVisible && isCredentialsValid && (
                         <DropdownList ref={dropdownListRef} data-testid="dropdown-list">
                             {modelSearchResults.map((item, index) => (
                                 <DropdownItem
@@ -189,7 +201,7 @@ export const DustModelPicker: React.FC = () => {
                 </DropdownWrapper>
             </div>
 
-            {hasInfo && (
+            {hasInfo && isCredentialsValid && (
                 <ModelInfoView
                     selectedModelId={selectedModelId}
                     modelInfo={selectedModelInfo}
