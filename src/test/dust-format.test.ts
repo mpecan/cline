@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { convertToDustMessages, parseDustResponse } from "../api/transform/dust-format"
 import { write } from "fs"
+import { dustSystemPrompt } from "../api/transform/dust-system-prompt"
 
 type ExtendedMessageParam = Anthropic.Messages.MessageParam | {
     role: "tool"
@@ -17,7 +18,7 @@ describe("Dust Format Transformer", () => {
 
             expect(result[0].role).toBe("user")
             expect(typeof result[0].content).toBe("string")
-            expect(result[0].content).toBe(systemPrompt)
+            expect(result[0].content).toBe(dustSystemPrompt(systemPrompt))
         })
 
         it("should convert tool messages to user messages", () => {
