@@ -10,6 +10,15 @@ export const validateApiConfiguration = (config: Partial<ApiConfiguration>): str
             if (!config.dustApiKey || !config.dustWorkspaceId) {
                 return "You must provide both an API key and Workspace ID.";
             }
+            // Check if models have been fetched
+            if (!config.dustAvailableModels || Object.keys(config.dustAvailableModels).length === 0) {
+                return "Waiting for available models...";
+            }
+            // Check if a valid agent/model is selected
+            const selectedAgentId = config.dustAssistantId || config.apiModelId;
+            if (selectedAgentId && !config.dustAvailableModels[selectedAgentId]) {
+                return "The selected agent is not available. Please choose a different agent.";
+            }
             break;
         case "openai":
             if (!config.openAiApiKey) {
